@@ -1,0 +1,44 @@
+[
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "Report results RNAseq Basal vs Luminal PCa cells",
+    "section": "",
+    "text": "This DataSet comes from available data in GEO (Accession: GSE67070).\nZhang, D., Park, D., Zhong, Y., Lu, Y., Rycaj, K., Gong, S., Chen, X., Liu, X., Chao, H. P., Whitney, P., Calhoun-Davis, T., Takata, Y., Shen, J., Iyer, V. R., & Tang, D. G. (2016). Stem cell and neurogenic gene-expression profiles link prostate basal cells to aggressive prostate cancer. Nature communications, 7, 10798. https://doi.org/10.1038/ncomms10798\nHere, you can take a brief view of upload dataset (and you also can download it):\n\n\n\n\n\n\n\n\n\n\nAnd here, you can take a brief view of upload dataset (and you also can download it):"
+  },
+  {
+    "objectID": "about.html",
+    "href": "about.html",
+    "title": "About",
+    "section": "",
+    "text": "About this site\n\n1 + 1\n\n[1] 2"
+  },
+  {
+    "objectID": "index.html#dataset",
+    "href": "index.html#dataset",
+    "title": "Report results RNAseq Basal vs Luminal PCa cells",
+    "section": "",
+    "text": "This DataSet comes from available data in GEO (Accession: GSE67070).\nZhang, D., Park, D., Zhong, Y., Lu, Y., Rycaj, K., Gong, S., Chen, X., Liu, X., Chao, H. P., Whitney, P., Calhoun-Davis, T., Takata, Y., Shen, J., Iyer, V. R., & Tang, D. G. (2016). Stem cell and neurogenic gene-expression profiles link prostate basal cells to aggressive prostate cancer. Nature communications, 7, 10798. https://doi.org/10.1038/ncomms10798\nHere, you can take a brief view of upload dataset (and you also can download it):"
+  },
+  {
+    "objectID": "index.html#metadata",
+    "href": "index.html#metadata",
+    "title": "Report results RNAseq Basal vs Luminal PCa cells",
+    "section": "",
+    "text": "And here, you can take a brief view of upload dataset (and you also can download it):"
+  },
+  {
+    "objectID": "index.html#normalized-data",
+    "href": "index.html#normalized-data",
+    "title": "Report results RNAseq Basal vs Luminal PCa cells",
+    "section": "2.1 Normalized data",
+    "text": "2.1 Normalized data\nFirst we are going to normalize the counts of every samples and do a boxplot to check the normalization:\n\n\n\n\n\n\n\n\n\n\n\nQC Analisis\n\n\n\nBoxplot shows that all samples hava almost the same median and data dispersion so we can conclude that data is correct.\n\n\nHere you are the normalized data (log10(counts)+1):\n\n\n\n\n\n\n\n\n\n\n\n\n\nWarning\n\n\n\n\nGene_Symbol and Entrez_ID have been also included.\nOriginal values have been rounded to 5 digits."
+  },
+  {
+    "objectID": "index.html#expression-profile-disregulation-of-lunimal-cells-relative-to-basal-cells-an-overview",
+    "href": "index.html#expression-profile-disregulation-of-lunimal-cells-relative-to-basal-cells-an-overview",
+    "title": "Report results RNAseq Basal vs Luminal PCa cells",
+    "section": "2.2 Expression profile disregulation of Lunimal cells relative to Basal cells: An Overview",
+    "text": "2.2 Expression profile disregulation of Lunimal cells relative to Basal cells: An Overview\nFor next aproach we will use the results of the DESeq2 differencial gene expression analisis which shricked results table (final table of results) is this one:\n\n\n\n\n\n\n\n\n\n\n\n\n\nWarning\n\n\n\n\nBaseMean, log2FoldChange, and lfcSE original values have been rounded to 5 digits.\npvalue and padj original values have been changed into scientific format.\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nThresholds\n\n\n\n\nThreshold for adjusted p-value: 0.05\nThreshold for Fold change: &lt;-2 and &gt;2 (which means an log2foldchage of 0.58)\n\n\n\nIn addition we are going to perform some hyeralchical clustering analisys Like PCA and Heatmap to check that groups are well defined:"
+  }
+]

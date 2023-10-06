@@ -1,0 +1,504 @@
+---
+title: "Report results RNAseq Basal vs Luminal PCa cells"
+author: "Francisco Porcel-Pastrana"
+format:
+  html:
+    toc: true
+    toc-expand: 4
+    toc-location: left
+    number-sections: true
+    html-math-method: katex
+    number-depth: 4
+    css: styles.css
+---
+
+
+# Imput Data
+
+## DataSet
+This DataSet comes from available data in GEO (Accession: GSE67070).
+
+*Zhang, D., Park, D., Zhong, Y., Lu, Y., Rycaj, K., Gong, S., Chen, X., Liu, X., Chao, H. P., Whitney, P., Calhoun-Davis, T., Takata, Y., Shen, J., Iyer, V. R., & Tang, D. G. (2016). Stem cell and neurogenic gene-expression profiles link prostate basal cells to aggressive prostate cancer. Nature communications, 7, 10798. [https://doi.org/10.1038/ncomms10798](https://pubmed.ncbi.nlm.nih.gov/26924072/)*
+
+```{r, eval=FALSE, echo=FALSE}
+#Require Packages
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("DESeq2", dependencies = TRUE)
+install.packages("ggplot2", dependencies = TRUE)
+#los siguientes paquetes son para representaciones y gestión de datos
+install.packages("pheatmap", dependencies = TRUE)
+install.packages("RColorBrewer", dependencies = TRUE)
+install.packages("tidyverse", dependencies = TRUE)
+BiocManager::install("ashr", dependencies = TRUE)
+install.packages("ggrepel")
+BiocManager::install("EnsDb.Hsapiens.v86", dependencies = TRUE)         
+BiocManager::install("biomaRt", dependencies = TRUE)
+BiocManager::install("PCAtools")
+install.packages("magick")
+BiocManager::install("clusterProfiler")
+BiocManager::install("org.Hs.eg.db")
+BiocManager::install("pathview")
+BiocManager::install("enrichplot")
+install.packages('ggridges')
+BiocManager::install("DOSE")
+BiocManager::install('msigdbr')
+install.packages('gridExtra')
+```
+
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#primero cargarmos todas las librerías necesarias
+library(DESeq2)
+library(ggplot2)
+#los siguientes paquetes son para representaciones de datos
+library(knitr)
+library(pheatmap)
+library(RColorBrewer)
+library(dplyr)
+library(gridExtra)
+library(ashr)
+library(ggrepel)
+library(EnsDb.Hsapiens.v86)
+library(biomaRt)
+library(PCAtools)
+library(magick)
+library(DT)
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(pathview)
+library(enrichplot)
+library(ggridges)
+library(DOSE)
+library(msigdbr)
+library(tidyverse)
+```
+
+Here, you can take a brief view of upload dataset (and you also can download it):
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#cargamos nuestro dataset
+countData <- as.data.frame(read.csv('Basal_vs_Luminal_GC.csv', header = TRUE, row.names=1, sep = ","))
+#creamos un botón para que la gente se lo pueda descargar
+ countData %>% datatable(extensions = "Buttons",
+          options = list(paging = TRUE,
+                           scrollX=TRUE,
+                           searching = TRUE,
+                           ordering = TRUE,
+                           dom = 'Bfrtip',
+                           buttons = c( 'csv', 'excel'),
+                           pageLength=5,
+                           lengthMenu=c(3,5,10) ))
+```
+
+## Metadata
+And here, you can take a brief view of upload dataset (and you also can download it): 
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#cargamos nuestra dataset
+metaData <- as.data.frame(read.csv('Metadata_Basal_vs_Luminal.csv', header = TRUE, row.name=1, sep = ","))
+metaData[,c(1:ncol(metaData))]<-as.factor(metaData[,c(1:ncol(metaData))])
+#ALso create a metadata downloader
+metaData %>% datatable(extensions = "Buttons",
+          options = list(paging = TRUE,
+                           scrollX=TRUE,
+                           searching = TRUE,
+                           ordering = TRUE,
+                           dom = 'Bfrtip',
+                           buttons = c( 'csv', 'excel'),
+                           pageLength=5,
+                           lengthMenu=c(3,5,10) ))
+```
+
+
+# Gene Expression Analisis
+
+## Normalized data
+First we are going to normalize the counts of every samples and do a boxplot to check the normalization:
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#Let's Start with de Differencial Gene Expression Estimatio with DESeq2
+dds <- DESeqDataSetFromMatrix(countData=round(countData), 
+                              colData=metaData, 
+                              design=~cell_type)
+
+#Prefiltered, still genes with  counts > 20 at least in three samples
+smallestGroupSize <- 3
+keep <- rowSums(counts(dds) >= 20) >= smallestGroupSize
+dds <- dds[keep,]
+
+#define "Basal" as our reference condition
+dds$condition<-relevel(dds$cell_type, ref="Basal")
+
+#Differential gene expresion approach
+dds_DEs<-DESeq(dds)
+
+#Calculate the estimate size factors of each sample to perform the normalization
+dds <- estimateSizeFactors(dds)
+
+#We also extract the normalized count data to perform some analisis
+normalized_counts<-counts(dds, normalized=TRUE)
+#at finish of manipulate norm data we are going to set is data in a new dataframe to then build a
+SYM_normalized_count<-normalized_counts %>%
+  data.frame() %>%
+  rownames_to_column(var="ENSEMBL")
+
+SYM_norm_count <- SYM_normalized_count$ENSEMBL %>%
+  bitr(., fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = "org.Hs.eg.db", drop = TRUE) %>%
+  as_tibble() %>%
+  left_join(., SYM_normalized_count, by = "ENSEMBL") %>%
+  dplyr::filter(!is.na(ENTREZID)) %>%
+  group_by(ENTREZID) %>%
+  summarize(
+    Basal_1 = round(mean(Basal_1), digits = 5),
+    Basal_2 = round(mean(Basal_2), digits = 5),
+    Basal_3 = round(mean(Basal_3), digits = 5),
+    Luminal_1 = round(mean(Luminal_1), digits = 5),
+    Luminal_2 = round(mean(Luminal_2), digits = 5),
+    Luminal_3 = round(mean(Luminal_3), digits = 5)
+  ) %>%
+  left_join(
+    .,
+    .$ENTREZID %>%
+      bitr(., fromType = "ENTREZID", toType = c("SYMBOL", "ENSEMBL"), OrgDb = "org.Hs.eg.db", drop = TRUE) %>%
+      group_by(ENTREZID) %>%
+      distinct(), 
+    by = "ENTREZID"
+  ) %>%
+  distinct(ENTREZID, .keep_all = TRUE) %>%
+  select(ENTREZID, SYMBOL, ENSEMBL, Basal_1, Basal_2, Basal_3, Luminal_1, Luminal_2, Luminal_3) %>%
+    arrange(ENSEMBL)
+
+#To perform boxplot should pass the normalized counts to a log10 normalization
+normcounts<-as.data.frame(log10(normalized_counts)+1)
+#now we have to convert the matrix to an long matrix to use ggplot
+long_df<-normcounts %>%
+  rownames_to_column(var="rowname") %>%
+  gather(columname, value, -rowname)
+#Establish the columns names of the new long df
+colnames(long_df)<-c("Ensembl_ID", "Samples", "Expression")
+#and set as factor the sample column
+long_df$Samples<-as.factor(long_df$Samples)
+#perform the boxplot
+ggplot(long_df, aes(x=Samples, y=Expression)) + geom_boxplot() +
+  ggtitle("Boxpot") +
+  xlab("Samples") + ylab("Normalized expression \n log10(counts)+1")
+```
+::: {.callout-note title="QC Analisis"}
+Boxplot shows that all samples hava almost the same median and data dispersion so we can conclude that data is correct.
+:::
+
+Here you are the normalized data (log10(counts)+1):
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+#in this code we are going to set the GeneSymbol that we will need 
+normcounts <-normcounts %>%
+  rownames_to_column( var="ENSEMBL") %>%
+  data.frame()
+
+IDnormcounts <- normcounts$ENSEMBL  %>%
+  bitr(., fromType = "ENSEMBL", toType = "ENTREZID", OrgDb="org.Hs.eg.db", drop=TRUE) %>%
+  as_tibble() %>%  
+  left_join(., normcounts, by = "ENSEMBL") %>%
+  dplyr::filter(!is.na(ENTREZID)) %>%
+  group_by(ENTREZID) %>%
+  summarize(
+    Basal_1 = round(mean(Basal_1), digits = 5),
+    Basal_2 = round(mean(Basal_2), digits = 5),
+    Basal_3 = round(mean(Basal_3), digits = 5),
+    Luminal_1 = round(mean(Luminal_1), digits = 5),
+    Luminal_2 = round(mean(Luminal_2), digits = 5),
+    Luminal_3 = round(mean(Luminal_3), digits = 5)
+  ) %>%
+  left_join(
+    .,
+    .$ENTREZID %>%
+      bitr(., fromType = "ENTREZID", toType = c("SYMBOL", "ENSEMBL"), OrgDb = "org.Hs.eg.db", drop = TRUE) %>%
+      group_by(ENTREZID) %>%
+      distinct(), 
+    by = "ENTREZID"
+  ) %>%
+  distinct(ENTREZID, .keep_all = TRUE) %>%
+  select(ENTREZID, SYMBOL, ENSEMBL, Basal_1, Basal_2, Basal_3, Luminal_1, Luminal_2, Luminal_3) %>%
+    arrange(ENSEMBL)
+  
+
+
+                         
+IDnormcounts %>%  datatable(extensions = "Buttons",
+          options = list(paging = TRUE,
+                           scrollX=TRUE,
+                           searching = TRUE,
+                           ordering = TRUE,
+                           dom = 'Bfrtip',
+                           buttons = c( 'csv', 'excel'),
+                           pageLength=5,
+                           lengthMenu=c(3,5,10) ))
+```
+
+::: {.callout-warning}
+- *Gene_Symbol* and *Entrez_ID* have been also included.
+- Original values have been rounded to 5 digits.
+:::
+
+## Expression profile disregulation of Lunimal cells relative to Basal cells: An Overview
+
+For next aproach we will use the results of the `DESeq2` differencial gene expression analisis which
+shricked results table (final table of results) is this one:
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#first ewe have to define that "Basal" is the control condition in the comparation with "contrast"
+contrast<-c("cell_type", "Luminal", "Basal")
+
+#Now we have to create the shrinked results table, so we have to perform the normal assay
+res<-results(dds_DEs, contrast = contrast, alpha = 0.05)
+#and now we can perform the Shrinked assay
+res_table <- lfcShrink(dds_DEs, contrast=contrast, res=res, type="ashr")
+
+
+res_table_tb <- res_table %>%
+  data.frame() %>%
+  rownames_to_column(var="ENSEMBL") %>% 
+  as_tibble()
+
+#Now we are going to include he SymbolID to make easy the representation of the single genes
+DE_SYMBOL_genes<-res_table_tb$ENSEMBL %>%
+  bitr(., fromType = "ENSEMBL", toType = c("ENTREZID", "SYMBOL"), OrgDb="org.Hs.eg.db", drop=TRUE) %>%
+  as_tibble() %>%
+  left_join(res_table_tb, by = "ENSEMBL")%>%
+  dplyr::filter(!is.na(ENTREZID)) %>%
+  group_by(ENTREZID) %>%
+  summarize(
+            baseMean=round(mean(baseMean), digits = 5), 
+           log2FoldChange=round(mean(log2FoldChange), digits = 5), 
+           lfcSE=round(mean(lfcSE), digits = 5), 
+           pvalue=format(mean(pvalue),scientific = TRUE), 
+           padj=format(mean(padj),scientific = TRUE)
+  ) %>%
+  left_join( ., .$ENTREZID %>%
+      bitr(., fromType = "ENTREZID", toType = c("SYMBOL", "ENSEMBL"), OrgDb = "org.Hs.eg.db", drop = TRUE) %>%
+      group_by(ENTREZID) %>%
+      distinct(), 
+    by = "ENTREZID"
+  ) %>%
+  distinct(ENTREZID, .keep_all = TRUE) %>%
+  select(ENTREZID, SYMBOL, ENSEMBL, baseMean, log2FoldChange, lfcSE, pvalue, padj) %>%
+   mutate_at(vars(baseMean, log2FoldChange, lfcSE, pvalue, padj), as.numeric) %>%
+  arrange(desc(log2FoldChange))
+
+
+DE_SYMBOL_genes  %>%  datatable(extensions = "Buttons",
+          options = list(paging = TRUE,
+                           scrollX=TRUE,
+                           searching = TRUE,
+                           ordering = TRUE,
+                           dom = 'Bfrtip',
+                           buttons = c( 'csv', 'excel'),
+                           pageLength=5,
+                           lengthMenu=c(3,5,10) ))        
+```
+
+::: {.callout-warning}
+- `BaseMean`, `log2FoldChange`, and `lfcSE` original values have been rounded to 5 digits.
+- `pvalue` and `padj` original values have been changed into scientific format.
+:::
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow = c(1, 1))
+par(mfrow = c(1, 2))
+#########################################
+#               Heatmap                 #
+#########################################
+#We have to make a dataframe with the dormalized data only with the genes which passed the threshold which set with ne next code:
+
+padj.cutoff <- 0.05
+lfc.cutoff <- 0.58
+
+#To perform the heatmap we need the normcounts but before the log10 treatment, so we have to set the 
+sig <- DE_SYMBOL_genes %>%
+        dplyr::filter(padj < padj.cutoff & abs(log2FoldChange) > lfc.cutoff)
+
+
+
+norm_sig <- normalized_counts %>%
+  data.frame() %>%
+  rownames_to_column(var="ENSEMBL") %>%
+              dplyr::filter(ENSEMBL %in% sig$ENSEMBL) %>% 
+  column_to_rownames(var="ENSEMBL")
+  
+annotation <- metaData %>% 
+  rownames_to_column(var="samplename") %>%
+	dplyr::select(samplename, cell_type) %>% 
+	data.frame(row.names = "samplename")
+
+pheatmap(norm_sig, 
+         color = colorRampPalette(brewer.pal(6, "YlOrRd"))(100), 
+         cluster_rows = T, 
+         show_rownames = F,
+         show_colnames = F,
+         annotation = annotation, 
+         border_color = NA, 
+         fontsize = 10, 
+         scale = "row", 
+         fontsize_row = 10, 
+         height = 20)
+
+#########################################
+#               VOLCANO                 #
+#########################################
+#Now we set the table to perform the Volcano. To do that, we must to create a colum to diffenciate between the genes who pass the threshold
+
+theshold_DE_SYMBOL_genes<- DE_SYMBOL_genes %>% 
+  #with mutate function we create a new colum wiht TRUE if the gene pass the condition
+                  mutate(threshold = padj < 0.05 & abs(log2FoldChange) >= 0.58)
+##VOLCANO##
+#to perform the volcano plot we have to set the cutoffs
+
+
+ggplot(theshold_DE_SYMBOL_genes, aes(x = log2FoldChange, y = -log10(padj))) +
+        geom_point(aes(colour = threshold)) +
+  #repel make us able to mark the dysregulated genes, but we need to explore deeper
+        #geom_text_repel(aes(label = SYMBOL), 
+                 #       size = 0.4) +
+        ggtitle("Volcano Plot \n Luminal vs Basal") +
+        xlab("log2 fold change") + 
+        ylab("-log10 adjusted p-value") +
+        theme(legend.position = "none",
+              plot.title = element_text(size = rel(1.5), hjust = 0.5),
+              axis.title = element_text(size = rel(1.))) 
+
+```
+
+::: {.callout-note title="Thresholds"}
+- Threshold for **adjusted p-value**: 0.05
+- Threshold for **Fold change**: <-2 and >2 *(which means an log2foldchage of 0.58)*
+:::
+
+In addition we are going to perform some hyeralchical clustering analisys Like PCA and Heatmap to check that groups are well defined:
+```{r, message=FALSE, echo=FALSE, warning=FALSE}
+#########################################
+#               PCA                     #
+#########################################
+
+
+#The imput muts be the matching between normalized data (with the gene names in row as rownames) and metadata
+p<-pca(normcounts %>%
+         column_to_rownames(var="ENSEMBL")
+         , metadata = metaData, removeVar=0.1)
+
+p1<-pairsplot(p,
+    components = getComponents(p, c(1:4)),
+    triangle = TRUE, 
+    trianglelabSize = 12,
+    hline = 0, 
+    vline = 0,
+    pointSize = 2,
+    gridlines.major = FALSE, 
+    gridlines.minor = FALSE,
+    colby = 'cell_type',
+    title = 'PCA plots',
+    titleLabSize = 15,
+    plotaxes = FALSE,
+    margingaps = unit(c(-0.01, -0.01, -0.01, -0.01), 'cm'))
+
+#########################################
+#          Best PCA                     #
+#########################################
+
+p2<-PCAtools::biplot(p,
+                 title = "Best PCA",
+                 lab=NULL,
+                 axisLabSize = 12,
+                 colby="cell_type",
+                 colkey = c("Basal"="forestgreen", "Luminal"="lightblue"),
+                 encircle = TRUE,
+                 encircleFill = TRUE,
+                 legendPosition = "bottom",
+                 legendTitleSize = 10,
+                 legendLabSize = 8,
+                 legendIconSize = 5)
+
+grid.arrange(p1, p2, ncol = 2)
+```
+
+
+```{r, message=FALSE, echo=FALSE, warning=FALSE}
+par(mfrow = c(1, 1))
+par(mfrow = c(1, 2))
+#########################################
+#          Heatmap  top 25              #
+#########################################
+
+#We have to make a dataframe with the dormalized data only with the genes which passed the threshold which set with ne next code:
+
+padj.cutoff <- 0.05
+lfc.cutoff <- 0.58
+
+top20_sig_genes <-   theshold_DE_SYMBOL_genes%>% 
+        arrange(padj) %>% 	#Arrange rows by padj values
+        pull(SYMBOL) %>% 		#Extract character vector of ordered genes
+        head(n=20)
+
+top20_sig_norm <- SYM_norm_count %>%
+  dplyr::filter(SYMBOL %in% top20_sig_genes)%>%
+  select(-ENSEMBL, -ENTREZID) %>%
+  column_to_rownames(var="SYMBOL")
+
+pheatmap(top20_sig_norm,
+         main="Heatmap top 20 dysregulated genes",
+         color = colorRampPalette(brewer.pal(6, "YlOrRd"))(100), 
+         cluster_rows = T, 
+         show_rownames = T,
+         show_colnames = F,
+         annotation = annotation, 
+         border_color = NA, 
+         fontsize = 10, 
+         scale = "row", 
+         fontsize_row = 10, 
+         height = 20)
+
+
+#########################################
+#          Boxplot top 9                #
+#########################################
+
+top9_sig_genes <-   theshold_DE_SYMBOL_genes%>% 
+        arrange(padj) %>% 	#Arrange rows by padj values
+        pull(SYMBOL) %>% 		#Extract character vector of ordered genes
+        head(n=9)
+
+top9_sig_norm <- SYM_norm_count %>%
+  dplyr::filter(SYMBOL %in% top9_sig_genes)%>%
+  select(-ENSEMBL, -ENTREZID) %>%
+  column_to_rownames(var="SYMBOL")
+#build the long matrix
+gathered_top9_sig <- top9_sig_norm %>%
+  rownames_to_column(var="SYMBOL") %>%
+  gather(colnames(top9_sig_norm)[1:ncol(top9_sig_norm)], key = "samplename", value = "SYM_norm_count") 
+#add metadata
+gathered_top9_sig <- inner_join(metaData %>%
+  rownames_to_column(var = "samplename"), gathered_top9_sig)
+
+
+
+ggplot(gathered_top9_sig) +
+        geom_boxplot(aes(x = SYMBOL, y = SYM_norm_count, fill = cell_type)) +
+        scale_y_log10() +
+        xlab("Genes") +
+        ylab("log10 Normalized Counts") +
+        ggtitle("Top 9 Significant DE Genes") +
+  facet_wrap (~SYMBOL, scale="free")+ 
+  theme(axis.text.x = element_text( size = 7),
+        axis.text.y = element_text( size = 5),
+    strip.text.x = element_text(size = 10, face = "bold"), 
+    legend.key.size=unit(2, "mm"))
+
+
+```
+
+
+
+
+# OVA and GSEA
+
+
+
